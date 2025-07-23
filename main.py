@@ -5,12 +5,8 @@ url = 'https://vstup.osvita.ua/y2025/r14/97/1483051/'
 
 entry_data = {}
 
-try:
-    response = requests.get(url)
-    response.raise_for_status()
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-
+def Get_Entry_Data(soup):
+    
     entry_data_div = soup.find_all('div', class_='table-of-specs-item panel-mobile')
 
     # Data for number of positions and etc.
@@ -26,6 +22,14 @@ try:
                 entry_data[label.replace(':', '')] = value
     
     print(entry_data)
+
+try:
+    response = requests.get(url)
+    response.raise_for_status()
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    Get_Entry_Data(soup)
 
 except requests.exceptions.RequestException as e:
     print(f"Помилка під час запиту: {e}")
