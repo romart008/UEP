@@ -60,7 +60,7 @@ def Pos_Table(url):
     #Starting Driver
     driver = webdriver.Edge(service=service, options=options)
     driver.get(url)
-    print("Edge started in background...")
+    #print("Edge started in background...")
 
     #Path to button
     button_xpath = "//div[contains(@class, 'detail-link') and .//span[text()='Завантажити ще...']]"
@@ -91,43 +91,121 @@ def Pos_Table(url):
             if len(cols) < 8:
                 continue
 
-            res.append({
+            if cols[7].get_text(strip=True) != '' and cols[8].get_text(strip=True) == 'К':
+                res.append({
                 "№": cols[0].get_text(strip=True),
-                "Name": cols[1].get_text(strip=True),
                 "State": cols[2].get_text(strip=True),
                 "P": cols[3].get_text(strip=True),
                 "Score": cols[4].contents[0].strip(),
-                "KV": cols[7].get_text(strip=True),
+                "KV": '',
                 "Type": cols[8].get_text(strip=True)
-            })
+                })
+            else:
+                res.append({
+                    "№": cols[0].get_text(strip=True),
+                    "State": cols[2].get_text(strip=True),
+                    "P": cols[3].get_text(strip=True),
+                    "Score": cols[4].contents[0].strip(),
+                    "KV": cols[7].get_text(strip=True),
+                    "Type": cols[8].get_text(strip=True)
+                })
 
 
     #Shutting down Driver
     driver.quit()
-    print("Work Ended.")
+    #print("Work Ended.")
 
+    res.sort(key=lambda item: (item["KV"] != '', float(item["Score"])), reverse=True)   
     return res, soup
 
 def Calc(table, entry_data, score, type):
-    Rating_table = []
     Rating = 0
 
-    for i in table:
-        if float(i["Score"]) >= score and i["State"] == 'Допущено' and i["KV"] == '' and type == 'All':
-            Rating_table.append(i)
-            Rating = int(i["№"]) +1
-        elif float(i["Score"]) < score and i["KV"] == '' and i["State"] == 'Допущено':
-            break
+    Kvota1 = 0
+    Kvota2 = 0
+    Budget = 0
+    Contract = 0
 
-    print(Rating_table)
-    print(Rating)
-            
+    Dict = {'1': 0,'2': 0,'3': 0,'4': 0,'5': 0,'6': 0,'7': 0,'8': 0,'9': 0,'10': 0,'11': 0,'12': 0,'13': 0,'14': 0,'15': 0}
+    Dict_C = {'1': 0,'2': 0,'3': 0,'4': 0,'5': 0,'6': 0,'7': 0,'8': 0,'9': 0,'10': 0,'11': 0,'12': 0,'13': 0,'14': 0,'15': 0}
+    Dict_KV1 = {'1': 0,'2': 0,'3': 0,'4': 0,'5': 0,'6': 0,'7': 0,'8': 0,'9': 0,'10': 0,'11': 0,'12': 0,'13': 0,'14': 0,'15': 0}
+    Dict_KV2 = {'1': 0,'2': 0,'3': 0,'4': 0,'5': 0,'6': 0,'7': 0,'8': 0,'9': 0,'10': 0,'11': 0,'12': 0,'13': 0,'14': 0,'15': 0}
+
+
+
+
+    for i in table:
+        #print(i)
+        #   KVOTAS
+
+        #Kvota 1
+        if i["KV"] == 'КВ1' and Kvota1 < int(entry_data["Максимальне держзамовлення, квота 1"]) and i["Type"] == 'Б':
+            Kvota1 +=1
+            Dict_KV1[i["P"]] += 1        #Kvota 1 and enough room for them
+        elif i["KV"] == 'КВ1' and Kvota1 >= int(entry_data["Максимальне держзамовлення, квота 1"]) and i["Type"] == 'Б' and float(i["Score"]) >= score:
+            Budget +=1
+            Dict[i["P"]] += 1           #Kvota 1 if there is NOT enought room for them
+
+        #Kvota 2
+        if i["KV"] == 'КВ2' and Kvota2 < int(entry_data["Максимальне держзамовлення, квота 2"]) and i["Type"] == 'Б':
+            Kvota2 +=1
+            Dict_KV2[i["P"]] += 1        #Kvota 2 and enough room for them
+        elif i["KV"] == 'КВ2' and Kvota2 >= int(entry_data["Максимальне держзамовлення, квота 2"]) and i["Type"] == 'Б' and float(i["Score"]) >= score:
+            Budget +=1
+            Dict[i["P"]] += 1           #Kvota 2 if there is NOT enought room for them
+
+        if i["KV"] != '' and i["KV"] != 'КВ1' and i["KV"] != 'КВ2':
+            Budget += 1         #In case it is not a kvota, but something else
+            Dict[i["P"]] += 1
+
+        #   EVERYONE ELSE
+
+        #Budget    
+        if float(i["Score"]) >= score and i["KV"] == '' and i["State"] == "Допущено" and i["Type"] == 'Б':
+            Budget += 1
+            Dict[i["P"]] += 1       #If someone is Budget with higher score and enough space left
+
+        #Contract
+        if float(i["Score"]) >= score and i["KV"] == '' and i["State"] == "Допущено" and i["Type"] == 'К':
+            Contract += 1
+            Dict_C[i["P"]] +=1      #If someone is Contract with higher score and enough space left
+
+        #If there is someone with lover score, but not a Kvota
+        if float(i["Score"]) < score and i["KV"] == '':
+            Rating = int(i["№"]) +1
+            break
+    
+    print(f"\nВаш рейтинг: {Rating} місце")
+    print(f"\nКвот 1 зайнято: {Kvota1}  Квот 2 зайнято {Kvota2}")
+    print(f"Перед вами {Budget} бюджетних місць з {int(entry_data["Максимальне держзамовлення"])} та {Contract} контрактних місць з {int(entry_data["Обсяг на контракт"])}\n")
+    if Budget < int(entry_data["Максимальне держзамовлення"]): print("Ви проходите на бюджет!")
+    else: print("Ви НЕ проходите на бюджет")
+    if Budget >int(entry_data["Максимальне держзамовлення"]):
+        Contract += Budget - int(entry_data["Максимальне держзамовлення"])
+    if Contract < int(entry_data["Обсяг на контракт"]): print("Ви проходите на контракт!")
+    else: print("Ви НЕ проходите на контракт")
+
+    print("\nCписок бюджетних пріоритетів")
+    for key, value in Dict.items(): 
+        if value != 0: print(f"{key}: {value}")
+
+    print("\nCписок контрактних пріоритетів")
+    for key, value in Dict_C.items(): 
+        if value != 0: print(f"{key}: {value}")
+    
+    print("\nCписок пріоритетів Квоти 1")
+    for key, value in Dict_KV1.items(): 
+        if value != 0: print(f"{key}: {value}")
+
+    print("\nCписок пріоритетів Квоти 2")
+    for key, value in Dict_KV2.items(): 
+        if value != 0: print(f"{key}: {value}")
 
 
 
 
 try:
-    score = 170
+    score = 150
     
     table, soup = Pos_Table(url)
 
